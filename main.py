@@ -8,11 +8,13 @@ from pyqtgraph import PlotWidget
 import numpy as np
 from scipy.fftpack import fft
 import math
+from math import ceil, inf
 import pandas as pd
 import pyqtgraph as pg
 matplotlib.use('Qt5Agg')
 from numpy.core.fromnumeric import size
 from scipy import signal
+import math
 
 
 
@@ -76,6 +78,9 @@ class Ui_MainWindow(object):
         self.horizontalSliderFor_chunks = QtWidgets.QSlider(self.centralwidget)
         self.horizontalSliderFor_chunks.setMaximum(10)
         self.horizontalSliderFor_chunks.setPageStep(1)
+        self.horizontalSliderFor_chunks.setValue(0)
+        self.horizontalSliderFor_chunks.setTickInterval(1)
+        self.horizontalSliderFor_chunks.setSingleStep(1)
         self.horizontalSliderFor_chunks.setOrientation(QtCore.Qt.Horizontal)
         self.horizontalSliderFor_chunks.setTickPosition(QtWidgets.QSlider.TicksBelow)
         self.horizontalSliderFor_chunks.setObjectName("horizontalSliderFor_chunks")
@@ -196,6 +201,7 @@ class Ui_MainWindow(object):
         self.pushButton_For_Open.clicked.connect(self.open_file)
         self.horizontalSliderFor_Effeciacy.valueChanged.connect(lambda: self.extrapolation_change())
         self.horizontalSliderFor_FittingOrder.valueChanged.connect(lambda: self.orderchange())
+        self.horizontalSliderFor_chunks.valueChanged.connect(lambda: self.chunk_change())
 
 
         self.pen_blue = pg.mkPen((0,0,255), width=2, style=QtCore.Qt.DotLine)
@@ -319,6 +325,15 @@ class Ui_MainWindow(object):
         self.slider_order_val = int(self.horizontalSliderFor_FittingOrder.value())
         self.plotting_data(self.slider_order_val)
         self.latex_eqn(self.slider_order_val)
+
+    def chunk_change(self):
+        #self.comboBox.clear()
+        self.slider_chunk_val = self.horizontalSliderFor_chunks.value()
+        self.chunk_size = ceil(1000 / self.slider_chunk_val)
+        self.plotting_data(self.slider_order_val)
+        # for i in range(self.slider_chunk_val):
+        #     self.comboBox.addItem(str(self.slider_chunk_val - i))
+
 
         
 
