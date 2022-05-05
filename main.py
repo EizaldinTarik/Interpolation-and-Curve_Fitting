@@ -11,6 +11,8 @@ import math
 import pandas as pd
 import pyqtgraph as pg
 matplotlib.use('Qt5Agg')
+from numpy.core.fromnumeric import size
+
 
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
@@ -92,6 +94,9 @@ class Ui_MainWindow(object):
         self.horizontalSliderFor_Effeciacy = QtWidgets.QSlider(self.centralwidget)
         self.horizontalSliderFor_Effeciacy.setMaximum(10)
         self.horizontalSliderFor_Effeciacy.setPageStep(1)
+        self.horizontalSliderFor_Effeciacy.setValue(0)
+        self.horizontalSliderFor_Effeciacy.setTickInterval(1)
+        self.horizontalSliderFor_Effeciacy.setSingleStep(1)
         self.horizontalSliderFor_Effeciacy.setOrientation(QtCore.Qt.Horizontal)
         self.horizontalSliderFor_Effeciacy.setTickPosition(QtWidgets.QSlider.TicksBelow)
         self.horizontalSliderFor_Effeciacy.setObjectName("horizontalSliderFor_Effeciacy")
@@ -183,55 +188,16 @@ class Ui_MainWindow(object):
         self.comboBox_Y_axis.setCurrentIndex(-1)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
-        self.pushButton_For_Open.clicked.connect(self.Open_file)
+        self.pushButton_For_Open.clicked.connect(self.open_file)
+        self.horizontalSliderFor_Effeciacy.valueChanged.connect(lambda: self.extrapolation_change())
 
 
-    def Open_file(self):
-        self.PlotWidget.clear()
-        fileName, _ = QtWidgets.QFileDialog.getOpenFileName(None, 'Open csv', QtCore.QDir.rootPath(), 'csv(*.csv)')
-        data_set = pd.read_csv(fileName, header=None)
-        plot(data_set)
-        self.Save_signal(data_set[0], data_set[1])
-
-    def Save_signal(self, time, Amplitude):
-        self.data_amplitude = Amplitude
-        self.data_time = time
-        self.plot_mainGraph(self.data_amplitude, self.data_time, 0)
-
-    def plot_mainGraph(self, amplitude, time, Fs):
-        self.pink_pen = pg.mkPen((255, 0, 255), width=1)
-        self.PlotWidget.plotItem.vb.setLimits(xMin=min(time) - 0.01, xMax=max(time), yMin=min(amplitude) - 0.2,
-                                                     yMax=max(amplitude) + 0.2)
-        if Fs == 0:
-            self.PlotWidget.clear()
-            self.PlotWidget.plot(time, amplitude)
-        else:
-            sample_time = 1 / Fs
-            no_of_samples = math.ceil(max(time)) / sample_time    ##Getting number of samples as a float number
-            no_of_samples = math.ceil(no_of_samples)              ##Getting number of samples as an int number
-
-            index_append = len(time) / no_of_samples
-            index_append = math.floor(index_append)
-            self.Sample_amp = []
-            self.Sample_time = []
-            index = 0
-            for i in range(no_of_samples):
-                self.Sample_time.append(time[index])           ##adding the index of point time
-                self.Sample_amp.append(amplitude[index])       ##adding the index of point amplitude
-                index += index_append
-
-            self.recons_amp = self.sinc_interp(self.Sample_amp, self.Sample_time, time)  ##plotting the new points
-
-            self.PlotWidget.clear()
-            #self.signalWidget2_ilustrator.clear()
-            self.PlotWidget.plot(time, amplitude)
-            self.PlotWidget.plot(self.Sample_time, self.Sample_amp, symbol='o', pen=None)
-            self.PlotWidget.plot(time, self.recons_amp, pen=self.pink_pen)
-            #self.signalWidget2_ilustrator.plot(time, self.recons_amp, pen=self.pink_pen)
-            #self.signalWidget2_ilustrator.plotItem.vb.setLimits(xMin=min(self.data_time) - 0.01,
-             #                                                   xMax=max(self.data_time),
-              #                                                  yMin=min(self.data_amplitude) - 0.2,
-               #                                                 yMax=max(self.data_amplitude) + 0.2)
+        self.pen_blue = pg.mkPen((0,0,255), width=2, style=QtCore.Qt.DotLine)
+        self.chunk_size=1000
+        self.slider_order_val = 1
+        self.slider_chunk_val = 1
+        self.extrapolation_sliderval = 1
+        self.extrapolation_pecentage = 100
 
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
@@ -256,6 +222,75 @@ class Ui_MainWindow(object):
         self.pushButton_For_spare_5.setText(_translate("MainWindow", "Spare"))
         self.labelForErrorPercentage.setText(_translate("MainWindow", "Error Percentage"))
 
+    def extrapolation_change(self):
+        self.horizontalSliderFor_chunks.setValue(0)
+        self.chunk_size = 1000
+        self.slider_chunk_val=1
+        self.extrapolation_sliderval = self.horizontalSliderFor_Effeciacy.value()
+        val = self.extrapolation_sliderval-1
+        self.extrapolation_pecentage = 100-val*5 #100 10
+        self.plotting_data(self.slider_order_val)
+
+    def open_file(self):
+        self.fileName, _ = QtWidgets.QFileDialog.getOpenFileName(None, 'Open csv', QtCore.QDir.rootPath(), 'csv(*.csv)')
+        self.data_set = pd.read_csv(self.fileName, header=None)
+        self.data_amplitude = self.data_set[1]
+        self.x_axis_data = self.data_set[0]
+        #self.canvas.draw()
+        self.Get_max_freq()
+        self.plotting_data(self.slider_order_val)
+
+    def Get_max_freq(self):
+        data_amp=[]
+        n=size(self.data_amplitude)
+
+        for i in self.data_amplitude:
+            if len(data_amp)== len(self.x_axis_data):
+                break
+            else:
+                data_amp.append(i)
+
+        frequencies_array=np.arange(1,n/2,dtype ='int')
+        data_freq=fft(data_amp)
+        freq_mag=(2/n)*abs(data_freq[0:np.size(frequencies_array)])
+
+        imp_freq=freq_mag>0.2
+        clean_frequencies_array=imp_freq*frequencies_array
+        self.fmax=round(clean_frequencies_array.max())
+
+    def plotting_data(self,order_val):
+        if self.fmax == 0:
+            self.PlotWidget.clear()
+            self.PlotWidget.plot(self.x_axis_data,self.data_amplitude)
+        else:
+            self.PlotWidget.clear()
+            self.PlotWidget.plotItem.vb.setLimits(xMin=min(self.x_axis_data)-0.01, xMax=max(self.x_axis_data),yMin=min(self.data_amplitude) - 0.2, yMax=max(self.data_amplitude) + 0.2)
+            self.PlotWidget.plot(self.x_axis_data,self.data_amplitude)
+            self.interpolate_the_curve(order_val)
+
+    def interpolate_the_curve(self,interpol_order):
+        self.chunk_coeffs = []
+        self.residuals = []
+        for i in range(0,len(self.x_axis_data)-1,self.chunk_size):
+            data = []
+            t = []
+            ind = i
+            for j in range(self.chunk_size-1):
+                if ind < len(self.x_axis_data):
+                    data.append(self.data_amplitude[ind])
+                    t.append(self.x_axis_data[ind])
+                    ind += 1
+            extrapolation_fraction = self.extrapolation_pecentage/100 #100
+            interpol_range = int(extrapolation_fraction*(self.chunk_size-1))
+            self.coeffs,res, _, _, _= np.polyfit(t[0:interpol_range], data[0:interpol_range], interpol_order, full=True)
+            if res.size != 0:
+                self.residuals.append(res[0])
+            self.chunk_coeffs.append(self.coeffs)
+
+            p = np.poly1d(self.coeffs)
+            self.PlotWidget.plot(t,p(t),pen = self.pen_blue)
+
+        
 
 if __name__ == "__main__":
     import sys
