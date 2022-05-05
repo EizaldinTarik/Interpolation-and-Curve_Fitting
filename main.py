@@ -12,6 +12,8 @@ import pandas as pd
 import pyqtgraph as pg
 matplotlib.use('Qt5Agg')
 from numpy.core.fromnumeric import size
+from scipy import signal
+
 
 
 class Ui_MainWindow(object):
@@ -84,6 +86,9 @@ class Ui_MainWindow(object):
         self.horizontalSliderFor_FittingOrder = QtWidgets.QSlider(self.centralwidget)
         self.horizontalSliderFor_FittingOrder.setMaximum(10)
         self.horizontalSliderFor_FittingOrder.setPageStep(1)
+        self.horizontalSliderFor_FittingOrder.setValue(0)
+        self.horizontalSliderFor_FittingOrder.setTickInterval(1)
+        self.horizontalSliderFor_FittingOrder.setSingleStep(1)
         self.horizontalSliderFor_FittingOrder.setOrientation(QtCore.Qt.Horizontal)
         self.horizontalSliderFor_FittingOrder.setTickPosition(QtWidgets.QSlider.TicksBelow)
         self.horizontalSliderFor_FittingOrder.setObjectName("horizontalSliderFor_FittingOrder")
@@ -190,6 +195,7 @@ class Ui_MainWindow(object):
 
         self.pushButton_For_Open.clicked.connect(self.open_file)
         self.horizontalSliderFor_Effeciacy.valueChanged.connect(lambda: self.extrapolation_change())
+        self.horizontalSliderFor_FittingOrder.valueChanged.connect(lambda: self.orderchange())
 
 
         self.pen_blue = pg.mkPen((0,0,255), width=2, style=QtCore.Qt.DotLine)
@@ -289,6 +295,30 @@ class Ui_MainWindow(object):
 
             p = np.poly1d(self.coeffs)
             self.PlotWidget.plot(t,p(t),pen = self.pen_blue)
+
+    def interpolate(self,interpol_order,chunk):
+        sampling_rate=int(2.5*self.fmax)
+        sample_time = 1/sampling_rate
+        no_of_samples = int(max(self.x_axis_data)/sample_time)
+        for i in range(0,len(self.x_axis_data)-1,chunk):
+            data = []
+            t = []
+            ind = i
+            for j in range(chunk-1):
+                if ind < len(self.x_axis_data):
+                    data.append(self.data_amplitude[ind])
+                    t.append(self.x_axis_data[ind])
+                    ind += 1
+            self.Sample_amp,self.Sample_time = signal.resample(data,no_of_samples,t)
+            z = np.polyfit(self.Sample_time, self.Sample_amp, interpol_order)
+            p = np.poly1d(z)
+            y = p(t)
+            return p 
+
+    def orderchange(self):
+        self.slider_order_val = int(self.horizontalSliderFor_FittingOrder.value())
+        self.plotting_data(self.slider_order_val)
+        self.latex_eqn(self.slider_order_val)
 
         
 
